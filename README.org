@@ -1,0 +1,16 @@
+* emacs-usa-election-2024                                            :ATTACH:
+:PROPERTIES:
+:ID:       C300D8EB-3025-410E-BF39-05078B755247
+:END:
+
+Indicate USA election 2024 in Emacs
+
+
+Enable =usa-election-2024-mode= will display the usa-election realtime result in current buffer modeline.
+
+[[attachment:2024-11-06_09-58-06_screenshot.png]]
+
+
+* Credit
+
+- [[https://github.com/mattn/vim-usa-election-2024][GitHub - mattn/vim-usa-election-2024]]
