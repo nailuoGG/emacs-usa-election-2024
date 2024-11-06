@@ -108,3 +108,4 @@ EVENT is either exit or signal."
 
 ;; Start polling immediately for testing. You can turn this on and off using `usa-election-2024-mode`.
 (usa-election-2024-mode)
+(provide 'usa-election-2024)
