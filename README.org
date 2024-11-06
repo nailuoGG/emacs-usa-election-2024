@@ -6,8 +6,7 @@
 Indicate USA election 2024 in Emacs
 
 
-Enable =usa-election-2024-mode= will display the usa-election realtime result in current buffer modeline.
-
+Enabling =usa-election-2024-mode= will display the real-time USA election results in the current buffer's mode line.
 [[data/C3/00D8EB-3025-410E-BF39-05078B755247/2024-11-06_09-58-06_screenshot.png]]
 
 
