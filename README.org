@@ -7,9 +7,11 @@ Indicate USA election 2024 in Emacs
 
 
 Enabling =usa-election-2024-mode= will display the real-time USA election results in the current buffer's mode line.
+
 [[data/C3/00D8EB-3025-410E-BF39-05078B755247/2024-11-06_09-58-06_screenshot.png]]
 
 
 * Credit
 
 - [[https://github.com/mattn/vim-usa-election-2024][GitHub - mattn/vim-usa-election-2024]]
+- [[https://chatgpt.com/][chatgpt-4o]]
