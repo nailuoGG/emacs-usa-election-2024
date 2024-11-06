@@ -1,111 +1,114 @@
-(defvar usa-election-2024-status ""
-  "Holds the latest electoral status of Harris vs Trump.")
+;;; usa-election-2024.el --- Display 2024 USA election status in mode-line -*- lexical-binding: t -*-
 
-(defvar usa-election-2024-res nil
-  "Accumulated response data.")
+;; Author: Your Name <your.email@example.com>
+;; Version: 1.0
+;; Package-Requires: ((emacs "27.1"))
+;; Keywords: convenience, tools
+;; URL: https://github.com/yourusername/emacs-usa-election-2024
 
-;; Define a global variable for the modeline
-(defvar usa-election-2024-mode-line ""
+;;; Code:
+
+(require 'url)
+(require 'json)
+
+(defgroup usa-election-2024 nil
+  "Display USA Election 2024 status in mode-line."
+  :group 'convenience
+  :prefix "usa-election-2024-")
+
+(defcustom usa-election-2024-update-interval 60
+  "Interval in seconds between updates of election data."
+  :type 'integer
+  :group 'usa-election-2024)
+
+(defcustom usa-election-2024-api-url "https://data.ddhq.io/electoral_college/2024"
+  "URL for the election data API."
+  :type 'string
+  :group 'usa-election-2024)
+
+;; Core variables
+(defvar-local usa-election-2024-mode-line ""
   "Text displayed in the modeline for the election status.")
 
-(defvar usa-election-2024-timer nil
+(defvar-local usa-election-2024-timer nil
   "Timer for updating the election status.")
 
-(defvar-local usa-election-2024-mode-line-format
-  '(:eval usa-election-2024-mode-line)
-  "Format for displaying election status in the mode-line for the current buffer.")
-
-;; Define a custom face to manage the modeline appearance
 (defface usa-election-2024-mode-line-face
-  '((t (:background "steel blue" :foreground "white")))
+  '((t :inherit mode-line-emphasis :weight bold))
   "Face for displaying the election status in the mode line."
-  :group 'usa-election)
+  :group 'usa-election-2024)
 
+;; Core functions
+(defun usa-election-2024--format-message (harris trump)
+  "Format detailed message for HARRIS and TRUMP electoral votes."
+  (format "USA Election 2024 Update: Harris has %d electoral votes, Trump has %d electoral votes. (%s)"
+          harris trump
+          (format-time-string "%Y-%m-%d %H:%M:%S")))
 
-(defun usa-election-2024-status ()
-  "Get the latest status comparing Harris vs Trump."
-  usa-election-2024-status)
-
-(defun usa-election-2024-update-modeline ()
-  "Update the mode line text with the current election status."
+(defun usa-election-2024--update-display (harris trump)
+  "Update the mode line with HARRIS and TRUMP electoral votes."
   (setq usa-election-2024-mode-line
-        (propertize (if (string-empty-p usa-election-2024-status)
-                        "Election Status: (Fetching...)"
-                       usa-election-2024-status)
+        (propertize (format " 🗽 Harris: %d | Trump: %d " harris trump)
                     'face 'usa-election-2024-mode-line-face))
-  ;; Force the mode line to refresh so that changes are visible
-  (force-mode-line-update))
+  (force-mode-line-update t)
+  ;; Display message in echo area
+  (message (usa-election-2024--format-message harris trump)))
 
-(defun usa-election-2024-update-callback (proc event)
-  "Callback function to process job output and update the status.
-PROC is the process object and EVENT is the event that occurred.
-EVENT is either exit or signal."
-  (when (memq (process-status proc) '(exit signal))
-    (with-current-buffer (process-buffer proc)
-      (let ((data (buffer-string)))
-        (condition-case err
-            (let* ((res (json-parse-string data :object-type 'alist))
-                   (candidates (alist-get 'candidates res))
-                   (harris (alist-get 'electoral_votes_total
-                                      (seq-find (lambda (x) (string-equal (alist-get 'last_name x) "Harris"))
-                                                candidates)))
-                   (trump (alist-get 'electoral_votes_total
-                                     (seq-find (lambda (x) (string-equal (alist-get 'last_name x) "Trump"))
-                                               candidates))))
-              (setq usa-election-2024-status (format "Harris(%d) vs Trump(%d)" harris trump))
-              ;; Update modeline
-              (usa-election-2024-update-modeline))
-          (error (message "Error parsing JSON: %S" err))))
-      (kill-buffer (process-buffer proc)))))
+(defun usa-election-2024--handle-response (status)
+  "Handle the API response with STATUS."
+  (unwind-protect
+      (if (plist-get status :error)
+          (message "Error fetching election data: %s (at %s)"
+                  (plist-get status :error)
+                  (format-time-string "%Y-%m-%d %H:%M:%S"))
+        (goto-char (point-min))
+        (re-search-forward "^$")
+        (let* ((json-data (json-read))
+               (candidates (alist-get 'candidates json-data))
+               (harris (alist-get 'electoral_votes_total
+                                (seq-find (lambda (x)
+                                          (string-equal (alist-get 'last_name x) "Harris"))
+                                        candidates)))
+               (trump (alist-get 'electoral_votes_total
+                               (seq-find (lambda (x)
+                                         (string-equal (alist-get 'last_name x) "Trump"))
+                                       candidates))))
+          (usa-election-2024--update-display harris trump)))
+    (kill-buffer)))
 
-(defun usa-election-2024-fetch-data ()
-  "Fetch the latest data from the election API and update the status."
-  (let ((url "https://data.ddhq.io/electoral_college/2024")
-        (buffer (get-buffer-create "*usa-election-output*")))
-    (with-current-buffer buffer (erase-buffer))
-    (make-process :name "usa-election-process"
-                  :buffer buffer
-                  :command (list "curl" "-s" url)
-                  :sentinel #'usa-election-2024-update-callback)))
+(defun usa-election-2024-update ()
+  "Fetch and update election status."
+  (url-retrieve usa-election-2024-api-url
+                #'usa-election-2024--handle-response
+                nil t t))
 
 (defun usa-election-2024-start-polling ()
-  "Start polling for election data every 60 seconds for this buffer."
+  "Start polling for election data."
   (unless usa-election-2024-timer
-    (message "Starting polling for USA election 2024 data in buffer: %s" (buffer-name))
     (setq usa-election-2024-timer
-          (run-at-time 0 60 #'usa-election-2024-fetch-data))
-    ;; Add mode-line format specific to this buffer
-    (unless (member usa-election-2024-mode-line-format mode-line-format)
-      (setq mode-line-format (append mode-line-format (list usa-election-2024-mode-line-format))))
-    ;; Update the mode-line immediately
-    (usa-election-2024-update-modeline)))
+          (run-with-timer 0 usa-election-2024-update-interval #'usa-election-2024-update))
+    (unless (member '(:eval usa-election-2024-mode-line) mode-line-format)
+      (setq-local mode-line-format
+                  (append mode-line-format '((:eval usa-election-2024-mode-line)))))
+    (usa-election-2024-update)))
 
 (defun usa-election-2024-stop-polling ()
-  "Stop polling for election data in the current buffer."
-  (when (timerp usa-election-2024-timer)
-    (message "Stopping polling for USA election 2024 data in buffer: %s" (buffer-name))
+  "Stop polling for election data."
+  (when usa-election-2024-timer
     (cancel-timer usa-election-2024-timer)
-    (setq usa-election-2024-timer nil))
-  ;; Clear and remove the mode-line indicator for the current buffer
-  (setq usa-election-2024-mode-line "")
-  (setq mode-line-format (delete usa-election-2024-mode-line-format mode-line-format))
-  ;; Ensure this buffer gets its mode-line updated
-  (force-mode-line-update))
+    (setq usa-election-2024-timer nil
+          usa-election-2024-mode-line "")
+    (setq-local mode-line-format
+                (delete '(:eval usa-election-2024-mode-line) mode-line-format))
+    (force-mode-line-update t)))
 
-;; Define the buffer-local minor mode to toggle polling in individual buffers
 (define-minor-mode usa-election-2024-mode
-  "Minor mode to poll and display the 2024 USA election status in the mode-line for individual buffers."
-  :lighter " USA Election"
-  :init-value nil
+  "Display 2024 USA election status in mode-line."
+  :lighter nil
   :global nil
   (if usa-election-2024-mode
       (usa-election-2024-start-polling)
     (usa-election-2024-stop-polling)))
 
-;; Initialize the mode-line variable in mode-line-format if necessary
-(unless (member '(:eval usa-election-2024-mode-line) mode-line-format)
-  (setq mode-line-format (append mode-line-format '((:eval usa-election-2024-mode-line)))))
-
-;; Start polling immediately for testing. You can turn this on and off using `usa-election-2024-mode`.
-(usa-election-2024-mode)
 (provide 'usa-election-2024)
+;;; usa-election-2024.el ends here
